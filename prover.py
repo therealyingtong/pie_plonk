@@ -1,27 +1,29 @@
-from compiler import to_assembly, get_public_assignments, \
-    make_s_polynomials, make_gate_polynomials
+from compiler.compiler import *
+from compiler.utils import Column
 from utils import *
+from setup import *
+from typing import Union, Optional
 
-def prove_from_witness(setup, group_order, code, var_assignments):
+def prove_from_witness(setup: Setup, group_order: int, code: list[str], var_assignments: dict[Optional[str], int]):
     eqs = to_assembly(code)
 
     if None not in var_assignments:
         var_assignments[None] = 0
 
-    variables = [v for (v, c) in eqs]
-    coeffs = [c for (v, c) in eqs]
+    wires = [eq.wires for eq in eqs]
+    coeffs = [eq.coeffs for eq in eqs]
 
     # Compute wire assignments
     A = [f_inner(0) for _ in range(group_order)]
     B = [f_inner(0) for _ in range(group_order)]
     C = [f_inner(0) for _ in range(group_order)]
-    for i, (in_L, in_R, out) in enumerate(variables):
-        A[i] = f_inner(var_assignments[in_L])
-        B[i] = f_inner(var_assignments[in_R])
-        C[i] = f_inner(var_assignments[out])
-    A_pt = evaluations_to_point(setup, group_order, A)
-    B_pt = evaluations_to_point(setup, group_order, B)
-    C_pt = evaluations_to_point(setup, group_order, C)
+    for i, gate_wires in enumerate(wires):
+        A[i] = f_inner(var_assignments[gate_wires.L])
+        B[i] = f_inner(var_assignments[gate_wires.R])
+        C[i] = f_inner(var_assignments[gate_wires.O])
+    A_pt = setup.evaluations_to_point(A)
+    B_pt = setup.evaluations_to_point(B)
+    C_pt = setup.evaluations_to_point(C)
 
     public_vars = get_public_assignments(coeffs)
     PI = (
@@ -36,7 +38,10 @@ def prove_from_witness(setup, group_order, code, var_assignments):
     gamma = binhash_to_f_inner(keccak256(keccak256(buf)))
 
     # Compute the accumulator polynomial for the permutation arguments
-    S1, S2, S3 = make_s_polynomials(group_order, variables)
+    S = make_s_polynomials(group_order, wires)
+    S1 = S[Column.LEFT]
+    S2 = S[Column.RIGHT]
+    S3 = S[Column.OUTPUT]
     Z = [f_inner(1)]
     roots_of_unity = get_roots_of_unity(group_order)
     for i in range(group_order):
@@ -50,7 +55,7 @@ def prove_from_witness(setup, group_order, code, var_assignments):
             (C[i] + beta * S3[i] + gamma)
         )
     assert Z.pop() == 1
-    Z_pt = evaluations_to_point(setup, group_order, Z)
+    Z_pt = setup.evaluations_to_point(Z)
     alpha = binhash_to_f_inner(keccak256(serialize_point(Z_pt)))
     print("Permutation accumulator polynomial successfully generated")
 
@@ -161,9 +166,9 @@ def prove_from_witness(setup, group_order, code, var_assignments):
     T2 = f_inner_fft(all_coeffs[group_order: group_order * 2])
     T3 = f_inner_fft(all_coeffs[group_order * 2: group_order * 3])
 
-    T1_pt = evaluations_to_point(setup, group_order, T1)
-    T2_pt = evaluations_to_point(setup, group_order, T2)
-    T3_pt = evaluations_to_point(setup, group_order, T3)
+    T1_pt = setup.evaluations_to_point(T1)
+    T2_pt = setup.evaluations_to_point(T2)
+    T3_pt = setup.evaluations_to_point(T3)
     print("Generated T1, T2, T3 polynomials")
 
     buf2 = serialize_point(T1_pt)+serialize_point(T2_pt)+serialize_point(T3_pt)
@@ -232,7 +237,7 @@ def prove_from_witness(setup, group_order, code, var_assignments):
     assert R_coeffs[group_order:] == [0] * (group_order * 3)
     R = f_inner_fft(R_coeffs[:group_order])
 
-    print('R_pt', evaluations_to_point(setup, group_order, R))
+    print('R_pt', setup.evaluations_to_point(R))
 
     assert barycentric_eval_at_point(R, zed) == 0
 
@@ -259,7 +264,7 @@ def prove_from_witness(setup, group_order, code, var_assignments):
     W_z_coeffs = expanded_evals_to_coeffs(W_z_big)
     assert W_z_coeffs[group_order:] == [0] * (group_order * 3)
     W_z = f_inner_fft(W_z_coeffs[:group_order])
-    W_z_pt = evaluations_to_point(setup, group_order, W_z)
+    W_z_pt = setup.evaluations_to_point(W_z)
 
     # Generate proof that the provided evaluation of Z(z*w) is correct. This
     # awkwardly different term is needed because the permutation accumulator
@@ -274,7 +279,7 @@ def prove_from_witness(setup, group_order, code, var_assignments):
     W_zw_coeffs = expanded_evals_to_coeffs(W_zw_big)
     assert W_zw_coeffs[group_order:] == [0] * (group_order * 3)
     W_zw = f_inner_fft(W_zw_coeffs[:group_order])
-    W_zw_pt = evaluations_to_point(setup, group_order, W_zw)
+    W_zw_pt = setup.evaluations_to_point(W_zw)
 
     print("Generated final quotient witness polynomials")
     return (

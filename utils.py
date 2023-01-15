@@ -2,8 +2,6 @@ import py_ecc.bn128 as b
 from py_ecc.fields.field_elements import FQ as Field
 from functools import cache
 from Crypto.Hash import keccak
-import py_ecc.bn128 as b
-from py_ecc.fields.field_elements import FQ as Field
 from multicombs import lincomb
 
 f = b.FQ
@@ -16,12 +14,12 @@ primitive_root = 5
 
 # Gets the first root of unity of a given group order
 @cache
-def get_root_of_unity(group_order):
+def get_root_of_unity(group_order) -> f_inner:
     return f_inner(5) ** ((b.curve_order - 1) // group_order)
 
 # Gets the full list of roots of unity of a given group order
 @cache
-def get_roots_of_unity(group_order):
+def get_roots_of_unity(group_order: int) -> list[f_inner]:
     o = [f_inner(1), get_root_of_unity(group_order)]
     while len(o) < group_order:
         o.append(o[-1] * o[1])
@@ -49,8 +47,8 @@ def ec_mul(pt, coeff):
 # would replace this with a fast lin-comb algo, see https://ethresear.ch/t/7238
 def ec_lincomb(pairs):
     return lincomb(
-        [pt for (pt, n) in pairs],
-        [int(n) % b.curve_order for (pt, n) in pairs],
+        [pt for (pt, _) in pairs],
+        [int(n) % b.curve_order for (_, n) in pairs],
         b.add,
         b.Z1
     )
@@ -59,68 +57,6 @@ def ec_lincomb(pairs):
     # for pt, coeff in pairs:
     #     o = b.add(o, ec_mul(pt, coeff))
     # return o
-
-# Encodes the KZG commitment to the given polynomial coeffs
-def coeffs_to_point(setup, coeffs):
-    if len(coeffs) > len(setup.G1_side):
-        raise Exception("Not enough powers in setup")
-    return ec_lincomb([(s, x) for s, x in zip(setup.G1_side, coeffs)])
-
-# Encodes the KZG commitment that evaluates to the given values in the group
-def evaluations_to_point(setup, group_order, evals):
-    return coeffs_to_point(setup, f_inner_fft(evals, inv=True))
-
-# Recover the trusted setup from a file in the format used in
-# https://github.com/iden3/snarkjs#7-prepare-phase-2
-SETUP_FILE_G1_STARTPOS = 80
-SETUP_FILE_POWERS_POS = 60
-
-class Setup(object):
-
-    def __init__(self, G1_side, X2):
-        self.G1_side = G1_side
-        self.X2 = X2
-
-    @classmethod
-    def from_file(cls, filename):
-        contents = open(filename, 'rb').read()
-        # Byte 60 gives you the base-2 log of how many powers there are
-        powers = 2**contents[SETUP_FILE_POWERS_POS]
-        # Extract G1 points, which start at byte 80
-        values = [
-            int.from_bytes(contents[i: i+32], 'little')
-            for i in range(SETUP_FILE_G1_STARTPOS,
-                           SETUP_FILE_G1_STARTPOS + 32 * powers * 2, 32)
-        ]
-        assert max(values) < b.field_modulus
-        # The points are encoded in a weird encoding, where all x and y points
-        # are multiplied by a factor (for montgomery optimization?). We can
-        # extractthe factor because we know the first point is the generator.
-        factor = f(values[0]) / b.G1[0]
-        values = [f(x) / factor for x in values]
-        G1_side = [(values[i*2], values[i*2+1]) for i in range(powers)]
-        print("Extracted G1 side, X^1 point: {}".format(G1_side[1]))
-        # Search for start of G2 points. We again know that the first point is
-        # the generator.
-        pos = SETUP_FILE_G1_STARTPOS + 32 * powers * 2
-        target = (factor * b.G2[0].coeffs[0]).n
-        while pos < len(contents):
-            v = int.from_bytes(contents[pos: pos+32], 'little')
-            if v == target:
-                break
-            pos += 1
-        print("Detected start of G2 side at byte {}".format(pos))
-        X2_encoding = contents[pos + 32 * 4: pos + 32 * 8]
-        X2_values = [
-            f(int.from_bytes(X2_encoding[i: i + 32], 'little')) / factor
-            for i in range(0, 128, 32)
-        ]
-        X2 = (f2(X2_values[:2]), f2(X2_values[2:]))
-        assert b.is_on_curve(X2, b.b2)
-        print("Extracted G2 side, X^1 point: {}".format(X2))
-        # assert b.pairing(b.G2, G1_side[1]) == b.pairing(X2, b.G1)
-        # print("X^1 points checked consistent")
-        return cls(G1_side, X2)
 
 # Extracts a point from JSON in zkrepl's format
 def interpret_json_point(p):
