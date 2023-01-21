@@ -122,14 +122,14 @@ The proof consists of:
 |$[t_{lo}(x)]_1$                   |       commitment to $t_{lo}(X)$, the low chunk of the quotient polynomial $t(X)$             |
 |$[t_{mid}(x)]_1$                  |       commitment to $t_{mid}(X)$, the middle chunk of the quotient polynomial $t(X)$         |
 |$[t_{hi}(x)]_1$                   |       commitment to $t_{hi}(X)$, the high chunk of the quotient polynomial $t(X)$            |
-|$\overline{a}$                    |                         opening of $a(X)$ at evaluation challenge $\zeta$                    |
-|$\overline{b}$                    |                         opening of $b(X)$ at evaluation challenge $\zeta$                    |
-|$\overline{c}$                    |                         opening of $c(X)$ at evaluation challenge $\zeta$                    |
-|$\overline{\mathsf{s}}_{\sigma1}$ |opening of the first permutation polynomial $S_{\sigma1}(X)$ at evaluation challenge $\zeta$  |
-|$\overline{\mathsf{s}}_{\sigma2}$ |opening of the second permutation polynomial $S_{\sigma2}(X)$ at evaluation challenge $\zeta$ |
-|$\overline{z}_\omega$             |      opening of shifted permutation polynomial $z(X)$ at shifted challenge $\zeta\omega$     |
-|$[W_\zeta(X)]_1$                  |                           commitment to the opening proof polynomial                         |
-|$[W_{\zeta\omega}(X)]_1$          |                           commitment to the opening proof polynomial                         |
+|$\overline{a}$                    |                         opening of $a(X)$ at evaluation challenge $\zed$                    |
+|$\overline{b}$                    |                         opening of $b(X)$ at evaluation challenge $\zed$                    |
+|$\overline{c}$                    |                         opening of $c(X)$ at evaluation challenge $\zed$                    |
+|$\overline{\mathsf{s}}_{\sigma1}$ |opening of the first permutation polynomial $S_{\sigma1}(X)$ at evaluation challenge $\zed$  |
+|$\overline{\mathsf{s}}_{\sigma2}$ |opening of the second permutation polynomial $S_{\sigma2}(X)$ at evaluation challenge $\zed$ |
+|$\overline{z}_\omega$             |      opening of shifted permutation polynomial $z(X)$ at shifted challenge $\zed\omega$     |
+|$[W_\zed(X)]_1$                  |                           commitment to the opening proof polynomial                         |
+|$[W_{\zed\omega}(X)]_1$          |                           commitment to the opening proof polynomial                         |
 
 
 ### Verifier

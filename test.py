@@ -1,6 +1,6 @@
 from compiler.program import Program
-from setup import Setup
-from prover import Proof
+from kzg.setup import Setup
+from prover import Prover
 from verifier import VerificationKey
 import json
 from test.mini_poseidon import rc, mds, poseidon_hash
@@ -18,7 +18,7 @@ def basic_test():
         if interpret_json_point(their_output[key]) != getattr(vk, key):
             raise Exception("Mismatch {}: ours {} theirs {}"
                             .format(key, getattr(vk, key), their_output[key]))
-    assert getattr(vk, 'w') == int(their_output['w'])
+    assert getattr(vk, 'root_of_unity') == int(their_output['w'])
     print("Basic test success")
     return setup
 
@@ -39,7 +39,7 @@ def ab_plus_a_test(setup):
         if interpret_json_point(their_output[key]) != getattr(vk, key):
             raise Exception("Mismatch {}: ours {} theirs {}"
                             .format(key, getattr(vk, key), their_output[key]))
-    assert getattr(vk, 'w') == int(their_output['w'])
+    assert getattr(vk, 'root_of_unity') == int(their_output['w'])
     print("ab+a test success")
 
 def one_public_input_test(setup):
@@ -51,23 +51,25 @@ def one_public_input_test(setup):
         if interpret_json_point(their_output[key]) != getattr(vk, key):
             raise Exception("Mismatch {}: ours {} theirs {}"
                             .format(key, getattr(vk, key), their_output[key]))
-    assert getattr(vk, 'w') == int(their_output['w'])
+    assert getattr(vk, 'root_of_unity') == int(their_output['w'])
     print("One public input test success")
 
 def prover_test(setup):
     print("Beginning prover test")
     program = Program(['e public', 'c <== a * b', 'e <== c * d'], 8)
     assignments = {'a': 3, 'b': 4, 'c': 12, 'd': 5, 'e': 60}
-    return Proof.prove_from_witness(setup, program, assignments)
+    prover = Prover()
+    proof = prover.prove(setup, program, assignments)
     print("Prover test success")
+    return proof
 
 def verifier_test(setup, proof):
     print("Beginning verifier test")
     program = Program(['e public', 'c <== a * b', 'e <== c * d'], 8)
     public = [60]
     vk = VerificationKey.make_verification_key(program, setup)
-    assert vk.verify_proof(8, proof, public, optimized=False)
-    assert vk.verify_proof(8, proof, public, optimized=True)
+    assert vk.verify(8, proof, public, optimized=False)
+    assert vk.verify(8, proof, public, optimized=True)
     print("Verifier test success")
 
 def factorization_test(setup):
@@ -98,9 +100,10 @@ def factorization_test(setup):
         'pb3': 1, 'pb2': 1, 'pb1': 0, 'pb0': 1,
         'qb3': 0, 'qb2': 1, 'qb1': 1, 'qb0': 1,
     })
-    proof = Proof.prove_from_witness(setup, program, assignments)
+    prover = Prover()
+    proof = prover.prove(setup, program, assignments)
     print("Generated proof")
-    assert vk.verify_proof(16, proof, public, optimized=True)
+    assert vk.verify(16, proof, public, optimized=True)
     print("Factorization test success!")
 
 def output_proof_lang() -> str:
@@ -139,9 +142,10 @@ def poseidon_test(setup):
     assignments = program.fill_variable_assignments({'L0': 1, 'M0': 2})
     vk = VerificationKey.make_verification_key(program, setup)
     print("Generated verification key")
-    proof = Proof.prove_from_witness(setup, program, assignments)
+    prover = Prover()
+    proof = prover.prove(setup, program, assignments)
     print("Generated proof")
-    assert vk.verify_proof(1024, proof, [1, 2, expected_value])
+    assert vk.verify(1024, proof, [1, 2, expected_value])
     print("Verified proof!")
 if __name__ == '__main__':
     setup = basic_test()

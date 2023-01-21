@@ -4,6 +4,7 @@ from utils import *
 from .assembly import *
 from .utils import *
 from typing import Optional, Set
+from poly import Polynomial, Basis
 
 class Program:
     constraints: list[AssemblyEqn]
@@ -26,16 +27,16 @@ class Program:
 
     def wires(self) -> list[GateWires]:
         return [constraint.wires for constraint in self.constraints]
-
-    def make_s_polynomials(self) -> dict[Column, list[Optional[f_inner]]]:
+    
+    def make_s_polynomials(self) -> dict[Column, Polynomial]:
         # For each variable, extract the list of (column, row) positions
         # where that variable is used
         variable_uses: dict[Optional[str], Set[Cell]] = {None: set()}
         for row, constraint in enumerate(self.constraints):
-            for column, value in zip(Column.variants(), constraint.wires.as_list()):
-                if value not in variable_uses:
-                    variable_uses[value] = set()
-                variable_uses[value].add(Cell(column, row))
+            for column, variable in zip(Column.variants(), constraint.wires.as_list()):
+                if variable not in variable_uses:
+                    variable_uses[variable] = set()
+                variable_uses[variable].add(Cell(column, row))
 
         # Mark unused cells
         for row in range(len(self.constraints), self.group_order):
@@ -52,18 +53,18 @@ class Program:
         # at S[LEFT][4] the field element representing (OUTPUT, 2)
 
         S = {
-            Column.LEFT: [None] * self.group_order,
-            Column.RIGHT: [None] * self.group_order,
-            Column.OUTPUT: [None] * self.group_order,
+            Column.LEFT: Polynomial(Basis.LAGRANGE, [Scalar(0)] * self.group_order),
+            Column.RIGHT: Polynomial(Basis.LAGRANGE, [Scalar(0)] * self.group_order),
+            Column.OUTPUT: Polynomial(Basis.LAGRANGE, [Scalar(0)] * self.group_order),
         }
 
         for _, uses in variable_uses.items():
             sorted_uses = sorted(uses)
             for i, cell in enumerate(sorted_uses):
-                next_i = (i+1) % len(sorted_uses)
+                next_i = (i + 1) % len(sorted_uses)
                 next_column = sorted_uses[next_i].column
                 next_row = sorted_uses[next_i].row
-                S[next_column][next_row] = cell.label(self.group_order)
+                S[next_column].values[next_row] = cell.label(self.group_order)
 
         return S
 
@@ -86,12 +87,13 @@ class Program:
 
     # Generate the gate polynomials: L, R, M, O, C,
     # each a list of length `group_order` 
-    def make_gate_polynomials(self) -> tuple[list[f_inner], list[f_inner], list[f_inner], list[f_inner], list[f_inner]]:
-        L = [f_inner(0) for _ in range(self.group_order)]
-        R = [f_inner(0) for _ in range(self.group_order)]
-        M = [f_inner(0) for _ in range(self.group_order)]
-        O = [f_inner(0) for _ in range(self.group_order)]
-        C = [f_inner(0) for _ in range(self.group_order)]
+    def make_gate_polynomials(self) -> tuple[Polynomial, Polynomial, Polynomial, Polynomial, Polynomial]:
+        L = [Scalar(0) for _ in range(self.group_order)]
+        R = [Scalar(0) for _ in range(self.group_order)]
+        M = [Scalar(0) for _ in range(self.group_order)]
+        O = [Scalar(0) for _ in range(self.group_order)]
+        C = [Scalar(0) for _ in range(self.group_order)]
+
         for i, constraint in enumerate(self.constraints):
             gate = constraint.gate()
             L[i] = gate.L
@@ -99,15 +101,21 @@ class Program:
             M[i] = gate.M
             O[i] = gate.O
             C[i] = gate.C
-        return L, R, M, O, C
+        return (
+            Polynomial(Basis.LAGRANGE, L),
+            Polynomial(Basis.LAGRANGE, R),
+            Polynomial(Basis.LAGRANGE, M),
+            Polynomial(Basis.LAGRANGE, O),
+            Polynomial(Basis.LAGRANGE, C)
+        )
 
     # Attempts to "run" the program to fill in any intermediate variable
     # assignments, starting from the given assignments. Eg. if
     # `starting_assignments` contains {'a': 3, 'b': 5}, and the first line
     # says `c <== a * b`, then it fills in `c: 15`.
     def fill_variable_assignments(self, starting_assignments: dict[Optional[str], int]) -> dict[Optional[str], int]:
-        out = {k: f_inner(v) for k,v in starting_assignments.items()}
-        out[None] = f_inner(0)
+        out = {k: Scalar(v) for k,v in starting_assignments.items()}
+        out[None] = Scalar(0)
         for constraint in self.constraints:
             wires = constraint.wires
             coeffs = constraint.coeffs
@@ -117,7 +125,7 @@ class Program:
             out_coeff = coeffs.get('$output_coeff', 1)
             product_key = get_product_key(in_L, in_R)
             if output is not None and out_coeff in (-1, 1):
-                new_value = f_inner(
+                new_value = Scalar(
                     coeffs.get('', 0) +
                     out[in_L] * coeffs.get(in_L, 0) +
                     out[in_R] * coeffs.get(in_R, 0) * (1 if in_R != in_L else 0) +
